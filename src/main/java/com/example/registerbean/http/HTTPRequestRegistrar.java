@@ -1,5 +1,6 @@
 package com.example.registerbean.http;
 
+import com.example.registerbean.annotation.EnableHttpUtil;
 import com.example.registerbean.annotation.HTTPRequest;
 import com.example.registerbean.annotation.HTTPUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -14,17 +15,21 @@ import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author 李佳明
@@ -42,7 +47,26 @@ public class HTTPRequestRegistrar implements ImportBeanDefinitionRegistrar,
 
     @Override
     public void registerBeanDefinitions(AnnotationMetadata annotationMetadata, BeanDefinitionRegistry beanDefinitionRegistry) {
-        registerHttpRequest(beanDefinitionRegistry);
+        AnnotationAttributes annotationAttributes =
+                AnnotationAttributes.fromMap(annotationMetadata.getAnnotationAttributes(EnableHttpUtil.class.getName()));
+        String[] basePackages = annotationAttributes.getStringArray("basePackages");
+        List<String> packages = new ArrayList<>();
+        if(!Objects.isNull(basePackages) && basePackages.length > 0){
+            packages = Arrays.asList(basePackages);
+        } else {
+            AnnotationAttributes componentScan =
+            AnnotationAttributes.fromMap(annotationMetadata.getAnnotationAttributes(ComponentScan.class.getName()));
+            for (String pkg : componentScan.getStringArray("basePackages")) {
+                if (StringUtils.hasText(pkg)) {
+                    packages.add(pkg);
+                }
+            }
+
+            for(String clas : componentScan.getStringArray("basePackageClasses")){
+                packages.add(ClassUtils.getPackageName(clas));
+            }
+        }
+        registerHttpRequest(beanDefinitionRegistry,packages);
     }
 
     /**
@@ -50,15 +74,17 @@ public class HTTPRequestRegistrar implements ImportBeanDefinitionRegistrar,
      *
      * @param beanDefinitionRegistry
      */
-    private void registerHttpRequest(BeanDefinitionRegistry beanDefinitionRegistry) {
+    private void registerHttpRequest(BeanDefinitionRegistry beanDefinitionRegistry,List<String> basePacks) {
         ClassPathScanningCandidateComponentProvider classScanner = getClassScanner();
         classScanner.setResourceLoader(this.resourceLoader);
         //指定只关注标注了@HTTPUtil注解的接口
         AnnotationTypeFilter annotationTypeFilter = new AnnotationTypeFilter(HTTPUtil.class);
         classScanner.addIncludeFilter(annotationTypeFilter);
         //指定扫描的基础包
-        String basePack = "com.example.registerbean";
-        Set<BeanDefinition> beanDefinitionSet = classScanner.findCandidateComponents(basePack);
+        Set<BeanDefinition> beanDefinitionSet = new HashSet<>();
+        for(String pack:basePacks) {
+            beanDefinitionSet.addAll(classScanner.findCandidateComponents(pack));
+        }
         for (BeanDefinition beanDefinition : beanDefinitionSet) {
             if (beanDefinition instanceof AnnotatedBeanDefinition) {
                 registerBeans(((AnnotatedBeanDefinition) beanDefinition));

@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @date 2017.10.14
  */
 @SpringBootApplication
-@EnableHttpUtil
+@EnableHttpUtil(value = {"com.example.registerbean"})
 public class RegisterbeanImportBeanDefinitionRegistrarApplication {
 
 	public static void main(String[] args) {
